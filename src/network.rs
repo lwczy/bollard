@@ -16,6 +16,7 @@ use crate::models::*;
 /// Network configuration used in the [Create Network API](Docker::create_network())
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
+#[serde(default)]
 pub struct CreateNetworkOptions<T>
 where
     T: Into<String> + Eq + Hash,
