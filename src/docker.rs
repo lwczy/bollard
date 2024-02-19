@@ -77,7 +77,7 @@ pub(crate) enum ClientType {
     NamedPipe,
 }
 
-pub(crate) trait AbstractClient: Send {
+pub(crate) trait AbstractClient {
   fn request(&self, req: Request<Body>) -> ResponseFuture;
 }
 
@@ -99,7 +99,7 @@ pub(crate) enum Transport {
         client: Client<UnixConnector>,
     },
     Connector {
-      client: Box<dyn AbstractClient>,
+      client: Box<dyn AbstractClient + Send + Sync>,
     },
     #[cfg(windows)]
     NamedPipe {
@@ -757,13 +757,13 @@ impl Docker {
 impl Docker {
 
   /// Connect using a Unix socket with ssh tunnel.
-  pub fn connect_with_connector<T: AbstractClient>(
-    connector: T,
+  pub fn connect_with_connector(
+    connector: Box<dyn AbstractClient + Send + Sync>,
     timeout: u64,
     client_addr: String,
     client_version: &ClientVersion,
   ) -> Result<Docker, Error> {
-      let transport = Transport::Connector { client: Box::new(connector) };
+      let transport = Transport::Connector { client: connector };
       let docker = Docker {
           transport: Arc::new(transport),
           client_type: ClientType::Connector,
