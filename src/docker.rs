@@ -19,7 +19,7 @@ use futures_util::future::TryFutureExt;
 use futures_util::stream::TryStreamExt;
 use http::header::CONTENT_TYPE;
 use http::request::Builder;
-use hyper::client::{Client, HttpConnector};
+use hyper::client::{Client, HttpConnector, ResponseFuture};
 use hyper::{self, body::Bytes, Body, Method, Request, Response, StatusCode};
 #[cfg(feature = "ssl")]
 use hyper_rustls::HttpsConnector;
@@ -70,10 +70,15 @@ pub(crate) enum ClientType {
     #[cfg(unix)]
     Unix,
     Http,
+    Connector,
     #[cfg(feature = "ssl")]
     SSL,
     #[cfg(windows)]
     NamedPipe,
+}
+
+pub trait AbstractClient {
+  fn request(&self, req: Request<Body>) -> ResponseFuture;
 }
 
 /// Transport is the type representing the means of communication
@@ -93,6 +98,9 @@ pub(crate) enum Transport {
     Unix {
         client: Client<UnixConnector>,
     },
+    Connector {
+      client: Box<dyn AbstractClient>,
+    },
     #[cfg(windows)]
     NamedPipe {
         client: Client<NamedPipeConnector>,
@@ -111,6 +119,7 @@ impl fmt::Debug for Transport {
             Transport::Https { .. } => write!(f, "HTTPS(rustls)"),
             #[cfg(unix)]
             Transport::Unix { .. } => write!(f, "Unix"),
+            Transport::Connector { .. } => write!(f, "Connector"),
             #[cfg(windows)]
             Transport::NamedPipe { .. } => write!(f, "NamedPipe"),
             #[cfg(test)]
@@ -745,6 +754,31 @@ impl Docker {
     }
 }
 
+impl Docker {
+
+  /// Connect using a Unix socket with ssh tunnel.
+  pub fn connect_with_connector<T: AbstractClient>(
+    connector: T,
+    timeout: u64,
+    client_addr: String,
+    client_version: &ClientVersion,
+  ) -> Result<Docker, Error> {
+      let transport = Transport::Connector { client: Box::new(connector) };
+      let docker = Docker {
+          transport: Arc::new(transport),
+          client_type: ClientType::Connector,
+          client_addr,
+          client_timeout: timeout,
+          version: Arc::new((
+              AtomicUsize::new(client_version.major_version),
+              AtomicUsize::new(client_version.minor_version),
+          )),
+      };
+
+      Ok(docker)
+    }
+}
+
 #[cfg(windows)]
 /// A Docker implementation typed to connect to a Windows Named Pipe, exclusive to the windows
 /// target.
@@ -1174,6 +1208,7 @@ impl Docker {
             Transport::Https { ref client } => client.request(req),
             #[cfg(unix)]
             Transport::Unix { ref client } => client.request(req),
+            Transport::Connector { ref client }=> client.request(req),
             #[cfg(windows)]
             Transport::NamedPipe { ref client } => client.request(req),
             #[cfg(test)]
