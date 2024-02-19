@@ -79,6 +79,7 @@ pub(crate) enum ClientType {
 
 /// AbstractClient
 pub trait AbstractClient {
+  /// hyper request
   fn request(&self, req: Request<Body>) -> ResponseFuture;
 }
 
