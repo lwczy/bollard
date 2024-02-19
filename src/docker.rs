@@ -70,7 +70,7 @@ pub(crate) enum ClientType {
     #[cfg(unix)]
     Unix,
     Http,
-    Connector,
+    Connector(String),
     #[cfg(feature = "ssl")]
     SSL,
     #[cfg(windows)]
@@ -762,13 +762,14 @@ impl Docker {
   pub fn connect_with_connector(
     connector: Box<dyn AbstractClient + Send + Sync>,
     timeout: u64,
+    schema: String,
     client_addr: String,
     client_version: &ClientVersion,
   ) -> Result<Docker, Error> {
       let transport = Transport::Connector { client: connector };
       let docker = Docker {
           transport: Arc::new(transport),
-          client_type: ClientType::Connector,
+          client_type: ClientType::Connector(schema),
           client_addr,
           client_timeout: timeout,
           version: Arc::new((
