@@ -77,7 +77,7 @@ pub(crate) enum ClientType {
     NamedPipe,
 }
 
-pub(crate) trait AbstractClient {
+pub(crate) trait AbstractClient: Send {
   fn request(&self, req: Request<Body>) -> ResponseFuture;
 }
 
